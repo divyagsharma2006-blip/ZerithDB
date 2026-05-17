@@ -40,6 +40,8 @@ type Client = {
   lastClearedAt: number;
 };
 
+const MAX_TIMESTAMP_SKEW_MS = 60_000;
+
 const dummyMessage: Note = {
   id: "dummy-1",
   text: "Hello from Client A!",
@@ -76,6 +78,59 @@ async function generateMockDID(): Promise<string> {
       .padStart(2, "0")
   ).join("");
   return `did:key:z${mockPublicKey}`;
+}
+
+function sanitizeTimestamp(value: number, now = Date.now()): number {
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return Math.min(Math.floor(value), now + MAX_TIMESTAMP_SKEW_MS);
+}
+
+function sortNotesByTimestamp(notes: Note[]): Note[] {
+  return [...notes].sort((a, b) => a.timestamp - b.timestamp);
+}
+
+function reconcileClients(clients: Client[]) {
+  const latestClearTimestamp = clients.reduce(
+    (maxClearTimestamp, client) =>
+      Math.max(maxClearTimestamp, sanitizeTimestamp(client.lastClearedAt)),
+    0
+  );
+
+  const allNotesMap = new Map<string, Note>();
+
+  clients.forEach((client) => {
+    client.notes.forEach((note) => {
+      const noteTimestamp = sanitizeTimestamp(note.timestamp);
+      if (noteTimestamp <= latestClearTimestamp) return;
+
+      const existing = allNotesMap.get(note.id);
+      if (!existing || noteTimestamp > existing.timestamp) {
+        allNotesMap.set(note.id, { ...note, timestamp: noteTimestamp });
+      }
+    });
+  });
+
+  const mergedNotes = sortNotesByTimestamp(Array.from(allNotesMap.values()));
+
+  let changed = false;
+  const syncedClients = clients.map((client) => {
+    const sanitizedClientNotes = sortNotesByTimestamp(
+      client.notes
+        .map((note) => ({ ...note, timestamp: sanitizeTimestamp(note.timestamp) }))
+        .filter((note) => note.timestamp > latestClearTimestamp)
+    );
+    const notesChanged = JSON.stringify(sanitizedClientNotes) !== JSON.stringify(mergedNotes);
+    const clearChanged = sanitizeTimestamp(client.lastClearedAt) !== latestClearTimestamp;
+
+    if (notesChanged || clearChanged) {
+      changed = true;
+      return { ...client, notes: mergedNotes, lastClearedAt: latestClearTimestamp };
+    }
+
+    return client;
+  });
+
+  return { changed, mergedNotes, syncedClients };
 }
 
 // Separate component for better scalability and cleaner code
@@ -169,7 +224,7 @@ function ClientCard({
           </div>
         ) : client.notes.length === 0 ? (
           <div className="text-center text-gray-400 mt-20 text-sm">
-            No messages. Click "Clear Chat" to remove all messages.
+            No messages. Type below to create one.
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -222,12 +277,13 @@ export default function PlaygroundPage() {
   const [isPeerConnected, setIsPeerConnected] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastTimeouts = useRef<Set<NodeJS.Timeout>>(new Set());
+  const isInitialMount = useRef(true);
 
   // Initialize clients
   const [clients, setClients] = useState<Client[]>(() =>
     CLIENTS_CONFIG.map((client) => ({
       ...client,
-      notes: client.id === "A" ? [dummyMessage] : [], // Only Client A gets dummy message
+      notes: client.id === "A" ? [dummyMessage] : [],
       input: "",
       identity: "",
       lastClearedAt: 0,
@@ -252,7 +308,7 @@ export default function PlaygroundPage() {
     })();
 
     return () => clearTimeout(timer);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!isOnline) {
@@ -306,7 +362,7 @@ export default function PlaygroundPage() {
 
   // Clear chat for a specific client
   const clearChat = (clientId: ClientId) => {
-    const clearedAt = Date.now();
+    const clearedAt = sanitizeTimestamp(Date.now());
     setClients((prev) =>
       prev.map((client) =>
         client.id === clientId
@@ -317,62 +373,35 @@ export default function PlaygroundPage() {
     showToast(`Chat cleared for Browser ${clientId}`, "success");
   };
 
-  // Sync logic simulation with clear propagation across browsers.
+  // ALWAYS sync regardless of online status (makes offline mode behave like online)
   useEffect(() => {
-    if (!isOnline) return;
-
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
     if (isLoading) return;
 
-    const latestClearAt = clients.reduce(
-      (maxClearAt, client) => Math.max(maxClearAt, client.lastClearedAt),
-      0
-    );
+    const { changed, mergedNotes, syncedClients } = reconcileClients(clients);
 
-    const allNotesMap = new Map<string, Note>();
-
-    clients.forEach((client) => {
-      client.notes.forEach((note) => {
-        if (note.timestamp <= latestClearAt) return;
-        const existing = allNotesMap.get(note.id);
-        if (!existing || note.timestamp > existing.timestamp) {
-          allNotesMap.set(note.id, note);
-        }
-      });
-    });
-
-    const mergedNotes = Array.from(allNotesMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-
-    let needsSync = false;
-    const syncedClients = clients.map((client) => {
-      const clientNotesSorted = [...client.notes].sort((a, b) => a.timestamp - b.timestamp);
-      const mergedSorted = [...mergedNotes];
-      const notesChanged = JSON.stringify(clientNotesSorted) !== JSON.stringify(mergedSorted);
-      const clearChanged = client.lastClearedAt !== latestClearAt;
-
-      if (notesChanged || clearChanged) {
-        needsSync = true;
-        return { ...client, notes: mergedNotes, lastClearedAt: latestClearAt };
-      }
-      return client;
-    });
-
-    if (needsSync) {
+    if (changed) {
       setClients(syncedClients);
       setSyncCount((prev) => prev + 1);
-
-      if (mergedNotes.length > 0) {
+      
+      if (mergedNotes.length > 0 && !isInitialMount.current) {
         showToast(
           `Synced ${mergedNotes.length} message${mergedNotes.length !== 1 ? "s" : ""} across browsers`,
           "success"
         );
       }
     }
-  }, [clients, isOnline, isLoading]);
+  }, [clients, isLoading]);
 
   const addNote = (clientId: ClientId, text: string) => {
     if (!text.trim()) return;
+    
     const newNote: Note = {
-      id: Math.random().toString(36).substring(7) + Date.now(), // Add timestamp to ensure uniqueness
+      id: Math.random().toString(36).substring(7) + Date.now(),
       text,
       timestamp: Date.now(),
       senderId: clientId,
@@ -385,6 +414,8 @@ export default function PlaygroundPage() {
           : client
       )
     );
+    
+    showToast(`Message saved in Browser ${clientId}`, "success");
   };
 
   const updateInput = (clientId: ClientId, value: string) => {
