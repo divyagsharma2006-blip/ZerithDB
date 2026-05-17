@@ -571,3 +571,4 @@ export default function PlaygroundPage() {
     </div>
   );
 }
+/*added clear chat functional in offline-mode */
