@@ -15,7 +15,8 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev --concurrency=20",
+    "dev": "npm run dev --workspace web",
+    "dev:all": "turbo run dev",
     "test": "turbo run test",
     "test:e2e": "turbo run test:e2e",
     "lint": "turbo run lint",

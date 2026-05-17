@@ -12,6 +12,7 @@ import {
   ArrowRightLeft,
   Copy,
   Check,
+  Trash2,
 } from "lucide-react";
 
 type ClientId = "A" | "B";
@@ -36,16 +37,17 @@ type Client = {
   notes: Note[];
   input: string;
   identity: string;
+  lastClearedAt: number;
 };
 
 const dummyMessage: Note = {
-  id: "1",
+  id: "dummy-1",
   text: "Hello from Client A!",
   senderId: "A",
   timestamp: Date.now(),
 };
 
-const CLIENTS_CONFIG: Omit<Client, "notes" | "input" | "identity">[] = [
+const CLIENTS_CONFIG: Omit<Client, "notes" | "input" | "identity" | "lastClearedAt">[] = [
   { id: "A", name: "Alice", color: "blue" },
   { id: "B", name: "Bob", color: "purple" },
 ];
@@ -63,6 +65,7 @@ const INSTRUCTIONS = [
     highlight: "Network: Offline",
     highlightColor: "green",
   },
+  "Click Clear Chat on any browser to remove all messages (syncs when online).",
 ];
 
 // Helper to generate mock Ed25519 did:key identifiers
@@ -82,12 +85,14 @@ function ClientCard({
   onAddNote,
   onUpdateInput,
   onCopyIdentity,
+  onClearChat,
 }: {
   client: Client;
   isLoading: boolean;
   onAddNote: (id: ClientId, text: string) => void;
   onUpdateInput: (id: ClientId, value: string) => void;
   onCopyIdentity: (text: string) => void;
+  onClearChat: (id: ClientId) => void;
 }) {
   const isBlue = client.color === "blue";
   const textColor = isBlue ? "text-blue-400" : "text-purple-400";
@@ -118,10 +123,21 @@ function ClientCard({
 
       {/* Identity Display */}
       <div className={`${bgColor} px-4 py-3 border-b ${borderColor}`}>
-        <div
-          className={`text-xs font-semibold ${isBlue ? "text-blue-900" : "text-purple-900"} mb-2 uppercase tracking-wide`}
-        >
-          Identity (Ed25519 Mock)
+        <div className="flex items-center justify-between mb-2">
+          <div
+            className={`text-xs font-semibold ${isBlue ? "text-blue-900" : "text-purple-900"} uppercase tracking-wide`}
+          >
+            Identity (Ed25519 Mock)
+          </div>
+          <button
+            onClick={() => onClearChat(client.id)}
+            className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+            title="Clear all messages"
+            aria-label={`Clear chat for Browser ${client.id}`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear Chat</span>
+          </button>
         </div>
         <div
           className={`flex items-center gap-2 bg-white rounded-lg px-3 py-2 border ${identityBorder}`}
@@ -153,7 +169,7 @@ function ClientCard({
           </div>
         ) : client.notes.length === 0 ? (
           <div className="text-center text-gray-400 mt-20 text-sm">
-            No documents. Type below to create one.
+            No messages. Click "Clear Chat" to remove all messages.
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -211,9 +227,10 @@ export default function PlaygroundPage() {
   const [clients, setClients] = useState<Client[]>(() =>
     CLIENTS_CONFIG.map((client) => ({
       ...client,
-      notes: [dummyMessage],
+      notes: client.id === "A" ? [dummyMessage] : [], // Only Client A gets dummy message
       input: "",
       identity: "",
+      lastClearedAt: 0,
     }))
   );
 
@@ -239,7 +256,6 @@ export default function PlaygroundPage() {
 
   useEffect(() => {
     if (!isOnline) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- simulate peer disconnect immediately
       setIsPeerConnected(false);
       return;
     }
@@ -288,44 +304,75 @@ export default function PlaygroundPage() {
     }
   };
 
-  // Sync logic simulation
+  // Clear chat for a specific client
+  const clearChat = (clientId: ClientId) => {
+    const clearedAt = Date.now();
+    setClients((prev) =>
+      prev.map((client) =>
+        client.id === clientId
+          ? { ...client, notes: [], lastClearedAt: clearedAt }
+          : client
+      )
+    );
+    showToast(`Chat cleared for Browser ${clientId}`, "success");
+  };
+
+  // Sync logic simulation with clear propagation across browsers.
   useEffect(() => {
     if (!isOnline) return;
 
-    // Merge all notes from all clients
-    const allNotes = clients.flatMap((c) => c.notes);
-    const merged = allNotes.reduce((acc, curr) => {
-      const existing = acc.find((n) => n.id === curr.id);
-      if (!existing) {
-        acc.push(curr);
-      } else if (curr.timestamp > existing.timestamp) {
-        existing.text = curr.text;
-        existing.timestamp = curr.timestamp;
-        existing.senderId = curr.senderId;
-      }
-      return acc;
-    }, [] as Note[]);
+    if (isLoading) return;
 
-    // Update all clients with merged data if changed
-    let hasChanges = false;
-    const newClients = clients.map((client) => {
-      if (JSON.stringify(client.notes) !== JSON.stringify(merged)) {
-        hasChanges = true;
-        return { ...client, notes: merged };
+    const latestClearAt = clients.reduce(
+      (maxClearAt, client) => Math.max(maxClearAt, client.lastClearedAt),
+      0
+    );
+
+    const allNotesMap = new Map<string, Note>();
+
+    clients.forEach((client) => {
+      client.notes.forEach((note) => {
+        if (note.timestamp <= latestClearAt) return;
+        const existing = allNotesMap.get(note.id);
+        if (!existing || note.timestamp > existing.timestamp) {
+          allNotesMap.set(note.id, note);
+        }
+      });
+    });
+
+    const mergedNotes = Array.from(allNotesMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+
+    let needsSync = false;
+    const syncedClients = clients.map((client) => {
+      const clientNotesSorted = [...client.notes].sort((a, b) => a.timestamp - b.timestamp);
+      const mergedSorted = [...mergedNotes];
+      const notesChanged = JSON.stringify(clientNotesSorted) !== JSON.stringify(mergedSorted);
+      const clearChanged = client.lastClearedAt !== latestClearAt;
+
+      if (notesChanged || clearChanged) {
+        needsSync = true;
+        return { ...client, notes: mergedNotes, lastClearedAt: latestClearAt };
       }
       return client;
     });
 
-    if (hasChanges) {
-      setClients(newClients); // eslint-disable-line react-hooks/set-state-in-effect
+    if (needsSync) {
+      setClients(syncedClients);
       setSyncCount((prev) => prev + 1);
+
+      if (mergedNotes.length > 0) {
+        showToast(
+          `Synced ${mergedNotes.length} message${mergedNotes.length !== 1 ? "s" : ""} across browsers`,
+          "success"
+        );
+      }
     }
-  }, [clients, isOnline]);
+  }, [clients, isOnline, isLoading]);
 
   const addNote = (clientId: ClientId, text: string) => {
     if (!text.trim()) return;
     const newNote: Note = {
-      id: Math.random().toString(36).substring(7),
+      id: Math.random().toString(36).substring(7) + Date.now(), // Add timestamp to ensure uniqueness
       text,
       timestamp: Date.now(),
       senderId: clientId,
@@ -437,6 +484,7 @@ export default function PlaygroundPage() {
             onAddNote={addNote}
             onUpdateInput={updateInput}
             onCopyIdentity={copyToClipboard}
+            onClearChat={clearChat}
           />
         ))}
       </main>

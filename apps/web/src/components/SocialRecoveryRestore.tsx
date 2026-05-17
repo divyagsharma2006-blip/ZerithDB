@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AuthManager } from "zerithdb-auth";
 
 interface SocialRecoveryRestoreProps {
-  authManager: AuthManager;
+  authManager: InstanceType<typeof AuthManager>;
   onRecovered?: () => void;
 }
 
