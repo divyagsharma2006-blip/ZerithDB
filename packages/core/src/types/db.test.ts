@@ -15,11 +15,7 @@ describe("Database Types", () => {
   });
 });
 
-export type Assert<T, U> =
-  [T] extends [U]
-  ? ([U] extends [T] ? true : false)
-  : false;
-
+export type Assert<T, U> = [T] extends [U] ? ([U] extends [T] ? true : false) : false;
 
 // 1. Explicit Schema Inference
 interface User {
@@ -54,11 +50,11 @@ export const testPartial_Nickname: Assert<PartialDoc["nickname"], string | undef
 export const validFilter: QueryFilter<User> = {
   _id: "abc",
   _createdAt: { $gt: Date.now() },
-  name: "Alice"
+  name: "Alice",
 };
 
-// @ts-expect-error - Invalid field type
+// @ts-expect-error: Invalid field type
 export const invalidFieldType: QueryFilter<User> = { age: "wrong" };
 
-// @ts-expect-error - Invalid operator type
+// @ts-expect-error: Invalid operator type
 export const invalidOperatorType: QueryFilter<User> = { age: { $gt: "not-a-number" } };

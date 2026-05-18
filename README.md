@@ -22,35 +22,35 @@
 
 ZerithDB provides multiple packages for building collaborative and offline-first applications.
 
-| Package | Installation | Description |
-| --- | --- | --- |
-| `zerithdb-sdk` | `npm install zerithdb-sdk` | Main developer-facing SDK |
-| `zerithdb-db` | `npm install zerithdb-db` | IndexedDB adapter |
-| `zerithdb-sync` | `npm install zerithdb-sync` | CRDT sync engine |
-| `zerithdb-network` | `npm install zerithdb-network` | WebRTC networking layer |
-| `zerithdb-auth` | `npm install zerithdb-auth` | Authentication utilities |
-| `zerithdb-core` | `npm install zerithdb-core` | Shared internal utilities |
-| `zerithdb-cli` | `npm install -g zerithdb-cli` | CLI tooling |
-| `zerithdb-react` | `npm install zerithdb-react` | React integration package |
-| `zerithdb-python` | `pip install zerithdb-python` | Python SDK support |
+| Package            | Installation                   | Description               |
+| ------------------ | ------------------------------ | ------------------------- |
+| `zerithdb-sdk`     | `npm install zerithdb-sdk`     | Main developer-facing SDK |
+| `zerithdb-db`      | `npm install zerithdb-db`      | IndexedDB adapter         |
+| `zerithdb-sync`    | `npm install zerithdb-sync`    | CRDT sync engine          |
+| `zerithdb-network` | `npm install zerithdb-network` | WebRTC networking layer   |
+| `zerithdb-auth`    | `npm install zerithdb-auth`    | Authentication utilities  |
+| `zerithdb-core`    | `npm install zerithdb-core`    | Shared internal utilities |
+| `zerithdb-cli`     | `npm install -g zerithdb-cli`  | CLI tooling               |
+| `zerithdb-react`   | `npm install zerithdb-react`   | React integration package |
+| `zerithdb-python`  | `pip install zerithdb-python`  | Python SDK support        |
 
 ---
 
 ## Table of Contents
 
-* [What is ZerithDB?](#what-is-zerithdb)
-* [Why ZerithDB?](#why-zerithdb)
-* [The 30-Second Demo](#the-30-second-demo)
-* [Features](#features)
-* [Quick Start](#quick-start)
-* [Architecture in One Diagram](#architecture-in-one-diagram)
-* [Packages](#packages)
-* [CLI Reference](#cli-reference)
-* [FAQ](#faq)
-* [Roadmap](#roadmap)
-* [Contributing](#contributing)
-* [Community](#community)
-* [License](#license)
+- [What is ZerithDB?](#what-is-zerithdb)
+- [Why ZerithDB?](#why-zerithdb)
+- [The 30-Second Demo](#the-30-second-demo)
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Architecture in One Diagram](#architecture-in-one-diagram)
+- [Packages](#packages)
+- [CLI Reference](#cli-reference)
+- [FAQ](#faq)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Community](#community)
+- [License](#license)
 
 ---
 
@@ -126,25 +126,15 @@ That's it. No `.env` files. No `docker-compose.yml`. No cloud accounts.
 
 ## Quick Start
 
-### Option 1: CLI (Recommended)
+### Installation
 
-If you're new here, follow these beginner friendly steps to get ZerithDB running on your machine:
-
-| Step | Action              | Command                           | What it does                            |
-| ---- | ------------------- | --------------------------------- | --------------------------------------- |
-| 1    | **Initialize**      | `npx zerithdb@latest init my-app` | Creates your project folder.            |
-| 2    | **Go to Directory** | `cd my-app`                       | Enters the folder you just created.     |
-| 3    | **Install**         | `npm install`                     | Gets all the tools needed for the app.  |
-| 4    | **Start App**       | `npm run dev`                     | Launches the app in your local browser. |
-
-> **Note:** You need [Node.js](https://nodejs.org/) installed to run these commands!
-
-### Option 2: Manual Install
+> **Note:** ZerithDB is currently in alpha and packages are not yet published to NPM. To use it, please clone the repository!
 
 ```bash
-pnpm add zerithdb-sdk
-# or
-npm install zerithdb-sdk
+git clone https://github.com/Zerith-Labs/ZerithDB.git
+cd ZerithDB
+pnpm install
+pnpm dev
 ```
 
 ### Minimal Setup
@@ -166,7 +156,8 @@ const app = createApp({
 
 ## Documentation Navigation
 
-New contributors and developers can use the following documents to better understand the project structure and workflow:
+New contributors and developers can use the following documents to better understand the project
+structure and workflow:
 
 - [Architecture Overview](ARCHITECTURE.md)
 - [Roadmap](ROADMAP.md)
@@ -180,6 +171,7 @@ For the best onboarding experience:
 2. Explore the architecture documentation
 3. Review the roadmap for planned features
 4. Read contribution guidelines before contributing
+
 ### Local Cloud Backups
 
 ```typescript
