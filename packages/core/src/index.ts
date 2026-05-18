@@ -1,9 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // zerithdb-core — Public API
 // ─────────────────────────────────────────────────────────────────────────────
-
 export { EventEmitter } from "./internal/event-emitter.js";
-export { ZerithDBError, ErrorCode } from "zerithdb-errors";
+export {
+  ZerithDBError,
+  ZerithValidationError,
+  ErrorCode,
+} from "./errors.js";
 export { Logger } from "./internal/logger.js";
 export type {
   ZerithDBConfig,
@@ -11,12 +14,14 @@ export type {
   AuthConfig,
   NetworkConfig,
   DebugConfig,
+  ConflictResolverConfig,
 } from "./types/config.js";
 export type {
   Document,
   DocumentId,
   CollectionName,
   QueryFilter,
+  QueryOptions,
   UpdateSpec,
   InsertResult,
   FindResult,
@@ -30,13 +35,35 @@ export type {
   MediaTrackMetadata,
   MediaStreamMetadata,
 } from "./types/network.js";
-export type { Identity, PublicKey, Signature } from "./types/auth.js";
+export type { Identity, PublicKey, Signature, IAuthManager, AuthEvents } from "./types/auth.js";
+
 export type {
   SyncUpdate,
   SyncState,
   AwarenessState,
-  EphemeralPeerState,
   SyncPlugin,
+  SyncProtocol,
+  EphemeralPeerState,
   ActiveSpeakerState,
   VideoParticipantState,
 } from "./types/sync.js";
+
+export type {
+  GraphNode,
+  GraphEdge,
+  GraphNodeId,
+  EdgeLabel,
+  GraphTraversalResult,
+} from "./types/graph.js";
+
+export {
+  PeerIdSchema,
+  SyncUpdateMessageSchema,
+  AwarenessMessageSchema,
+  PingMessageSchema,
+  PongMessageSchema,
+  PeerDataMessageSchema,
+  IncomingPeerDataMessageSchema,
+} from "./schemas/messages.js";
+
+export type { PeerDataMessage, IncomingPeerDataMessage } from "./schemas/messages.js";
